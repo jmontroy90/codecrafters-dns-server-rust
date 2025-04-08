@@ -1,47 +1,7 @@
 #[allow(unused_imports)]
 use std::net::UdpSocket;
-use bytes::{Bytes, BufMut, BytesMut};
-
-struct Header {
-    packet_identifier: u16,
-    query_response_indicator: bool,
-    operation_code: u8,
-    authoritative_answer: bool,
-    truncation: bool,
-    recursion_desired: bool,
-    recursion_available: bool,
-    reserved: u8,
-    response_code: u8,
-    question_count: u16,
-    answer_record_count: u16,
-    authority_record_count: u16,
-    additional_record_count: u16,
-}
-
-
-impl Header {
-    pub fn to_bytes(&self) -> Bytes {
-        let mut buf = BytesMut::with_capacity(96);
-        buf.put_u16(self.packet_identifier);
-        buf.put_u8(
-            (self.query_response_indicator as u8) << 7
-                | (self.operation_code) << 3
-                | (self.authoritative_answer as u8) << 2
-                | (self.truncation as u8) << 1
-                | (self.recursion_desired as u8),
-        );
-        buf.put_u8(
-            (self.recursion_available as u8) << 7
-            | (self.reserved) << 4
-            | (self.response_code) << 2
-        );
-        buf.put_u16(self.question_count);
-        buf.put_u16(self.answer_record_count);
-        buf.put_u16(self.authority_record_count);
-        buf.put_u16(self.additional_record_count);
-        buf.freeze()
-    }
-}
+use codecrafters_dns_server::dns;
+use bytes::{BytesMut};
 
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -51,7 +11,7 @@ fn main() {
     let udp_socket = UdpSocket::bind("127.0.0.1:2053").expect("Failed to bind to address");
     let mut buf = [0; 512];
 
-    let response = Header {
+    let header = dns::Header {
         packet_identifier: 1234,
         query_response_indicator: true,
         operation_code: 0,
@@ -61,20 +21,29 @@ fn main() {
         recursion_available: false,
         reserved: 0,
         response_code: 0,
-        question_count: 0,
+        question_count: 1,
         answer_record_count: 0,
         authority_record_count: 0,
         additional_record_count: 0,
     };
 
-    // eprintln!("{:?}\n", &response.to_bytes());
+    let question = dns::Question {
+        name: String::from("codecrafters.io"),
+        qtype: 1,
+        qclass: 1,
+    };
+
+    let mut resp = BytesMut::with_capacity(header.to_bytes().len() + question.to_bytes().len());
+    resp.extend_from_slice(&header.to_bytes());
+    resp.extend_from_slice(&question.to_bytes());
+    let out = resp.freeze();
 
     loop {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
                 println!("Received {} bytes from {}", size, source);
                 udp_socket
-                    .send_to(&response.to_bytes(), source)
+                    .send_to(&out, source)
                     .expect("Failed to send response");
             }
             Err(e) => {
