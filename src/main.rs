@@ -22,7 +22,7 @@ fn main() {
         reserved: 0,
         response_code: 0,
         question_count: 1,
-        answer_record_count: 0,
+        answer_record_count: 1,
         authority_record_count: 0,
         additional_record_count: 0,
     };
@@ -33,9 +33,20 @@ fn main() {
         qclass: 1,
     };
 
-    let mut resp = BytesMut::with_capacity(header.to_bytes().len() + question.to_bytes().len());
+    let answer = dns::Answer {
+        name: String::from("codecrafters.io"),
+        qtype: 1,
+        qclass: 1,
+        ttl: 60,
+        length: 4,
+        data: b"\x08\x08\x08\x08".to_owned()
+    };
+
+    let cap = header.to_bytes().len() + question.to_bytes().len() + answer.to_bytes().len();
+    let mut resp = BytesMut::with_capacity(cap);
     resp.extend_from_slice(&header.to_bytes());
     resp.extend_from_slice(&question.to_bytes());
+    resp.extend_from_slice(&answer.to_bytes());
     let out = resp.freeze();
 
     loop {
