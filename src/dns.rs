@@ -17,6 +17,7 @@ pub struct Record {
 
 impl Record {
 
+    // TODO: lots of redundant code here, and weird types with String
     pub fn from_bytes(buf: &mut BytesMut) -> Record {
         println!("JOHN: Building record");
         let bufc = buf.clone(); // Used for resolving pointers.
@@ -31,6 +32,7 @@ impl Record {
                 println!("JOHN: Question: Resolving pointer at byte position {}", start_pos);
                 let labels = read_label_sequence(&bufc, start_pos);
                 println!("JOHN: Question: Found labels at byte position {}: {:?}", start_pos, labels);
+                existing.push('.');
                 existing.push_str(labels.join(".").as_str());
                 q.name = existing.to_string();
                 q.done = true;
@@ -47,6 +49,7 @@ impl Record {
                 println!("Answer: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
                 println!("Answer: Found labels at byte position {}: {:?}", length_pos, labels);
+                existing.push('.');
                 existing.push_str(labels.join(".").as_str());
                 a.name = existing.to_string();
                 a.done = true;
