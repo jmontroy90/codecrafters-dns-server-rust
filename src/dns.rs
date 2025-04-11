@@ -19,8 +19,8 @@ impl Record {
 
     pub fn from_bytes(buf: &mut BytesMut) -> Record {
         println!("JOHN: Building record");
+        let bufc = buf.clone(); // Used for resolving pointers.
         let h = Header::from_bytes(buf); // consumes header bytes, e.g. 12
-        let bufc = buf.clone(); // Pointer offsets don't include header bytes.
         // Questions
         let mut qs: Vec<Question> = Vec::new();
         for _ in 0..h.question_count {
