@@ -314,6 +314,7 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
 
 fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
+    println!("JOHN: reading label sequence; full bytes: {:?}", buf);
     loop {
         let mut length = buf[start_pos] as usize;
         if length == 0x0 {
