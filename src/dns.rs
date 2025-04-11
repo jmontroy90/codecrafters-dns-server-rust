@@ -27,10 +27,10 @@ impl Record {
             println!("JOHN: Question: Resolving questions");
             let mut q = Question::from_bytes(buf);
             if !q.done {
-                let Pointer(ref mut existing, length_pos) = q.name_result else { panic!("We shouldn't be here.") };
-                println!("JOHN: Question: Resolving pointer at byte position {}", length_pos);
-                let labels = read_label_sequence(&bufc, length_pos);
-                println!("JOHN: Question: Found labels at byte position {}: {:?}", length_pos, labels);
+                let Pointer(ref mut existing, start_pos) = q.name_result else { panic!("We shouldn't be here.") };
+                println!("JOHN: Question: Resolving pointer at byte position {}", start_pos);
+                let labels = read_label_sequence(&bufc, start_pos);
+                println!("JOHN: Question: Found labels at byte position {}: {:?}", start_pos, labels);
                 existing.push_str(labels.join(".").as_str());
                 q.name = existing.to_string();
                 q.done = true;
@@ -312,16 +312,17 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
 //     ls
 // }
 
-fn read_label_sequence(buf: &BytesMut, mut length_pos: usize) -> Vec<String> {
+fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     loop {
-        if length_pos == 0x0 {
+        let mut length = buf[start_pos] as usize;
+        if length == 0x0 {
             break
         }
-        let l: usize = buf[length_pos] as usize;
-        let (start, end): (usize, usize) = (length_pos + 1, length_pos+1+l);
+        let (start, end): (usize, usize) = (start_pos + 1, start_pos+1+length);
+        println!("JOHN: Reading label from pointer position. start_pos: {}, start: {}, end: {}", start_pos, start, end);
         labels.push(String::from_utf8(buf[start..end].to_vec()).unwrap());
-        length_pos = end + 1
+        start_pos = end + 1
     }
     labels
 }
