@@ -265,6 +265,7 @@ fn is_compressed(buf: u8) -> bool {
 
 fn parse_name(buf: &mut BytesMut) -> NameResult  {
     if is_compressed(buf[0]) {
+        println!("JOHN: FOUND COMPRESSION!");
         return Pointer(get_pointer(buf));
     }
     LabelSequence(get_label_sequence(buf).join("."))
