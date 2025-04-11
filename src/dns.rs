@@ -202,7 +202,7 @@ impl Answer {
             qclass: q.qclass,
             ttl: 60,
             length: 4,
-            data: vec![0x08, 0x08, 0x08, 0x08],
+            data: vec![0x8, 0x8, 0x8, 0x8],
             name_result: NA,
             done: true
         }
@@ -310,12 +310,11 @@ fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use super::*;
 
     #[test]
     fn test_record_to_bytes_from_bytes() {
-
-
         let expected = Record {
             header: Header {
                 packet_identifier: 1234,
@@ -352,6 +351,14 @@ mod tests {
         };
         let actual = Record::from_bytes(&mut expected.to_bytes());
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_record_from_bytes() {
+        let mut bs = BytesMut::new();
+        bs.extend_from_slice(b"\x11\xb3\x81\0\0\x01\0\x01\0\0\0\0\x0ccodecrafters\x02io\0\0\x01\0\x01\x0ccodecrafters\x02io\0\0\x01\0\x01\0\0\0<\0\x04\x08\x08\x08\x08".as_slice());
+        let record = Record::from_bytes(&mut bs);
+        println!("{:?}", record);
     }
 
     #[test]
