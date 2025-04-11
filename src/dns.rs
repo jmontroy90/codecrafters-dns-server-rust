@@ -320,7 +320,7 @@ fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
             break
         }
         let (start, end): (usize, usize) = (start_pos + 1, start_pos+1+length);
-        println!("JOHN: Reading label from pointer position. start_pos: {}, start: {}, end: {}", start_pos, start, end);
+        println!("JOHN: Reading label from pointer position. length: {}, start_pos: {}, start: {}, end: {}", length, start_pos, start, end);
         labels.push(String::from_utf8(buf[start..end].to_vec()).unwrap());
         start_pos = end + 1
     }
