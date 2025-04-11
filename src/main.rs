@@ -32,5 +32,7 @@ fn build_response(mut buf: BytesMut) -> BytesMut {
     resp.header.answer_record_count = resp.header.question_count;
     resp.answers = resp.questions.iter().map(|q| { Answer::from_question(q) }).collect();
     println!("{:#?}", resp);
-    resp.to_bytes()
+    let out = resp.to_bytes();
+    println!("JOHN: raw bytes: {:#?}", out);
+    out
 }
