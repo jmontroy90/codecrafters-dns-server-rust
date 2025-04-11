@@ -1,7 +1,7 @@
 use bytes::{BufMut, BytesMut, Buf};
 use crate::dns::NameResult::{LabelSequence, Pointer, NA};
 
-#[derive(Debug, PartialEq)] // Optional: Derive Debug for easy printing
+#[derive(Debug, PartialEq)]
 enum NameResult {
     Pointer(String, usize),
     LabelSequence(String),
@@ -26,12 +26,7 @@ impl Record {
         for _ in 0..h.question_count {
             let mut q = Question::from_bytes(buf);
             if !q.done {
-                let Pointer(ref mut existing, start_pos) = q.name_result else { panic!("We shouldn't be here.") };
-                let labels = read_label_sequence(&bufc, start_pos);
-                existing.push('.');
-                existing.push_str(labels.join(".").as_str());
-                q.name = existing.to_string();
-                q.done = true;
+                q.update_pointer_from_full(&bufc);
             }
             qs.push(q);
         }
@@ -40,12 +35,7 @@ impl Record {
         for _ in 0..h.answer_record_count {
             let mut a = Answer::from_bytes(buf);
             if !a.done {
-                let Pointer(ref mut existing, length_pos) = a.name_result else { panic!("We shouldn't be here.") };
-                let labels = read_label_sequence(&bufc, length_pos);
-                existing.push('.');
-                existing.push_str(labels.join(".").as_str());
-                a.name = existing.to_string();
-                a.done = true;
+                a.update_pointer_from_full(&bufc)
             }
             answers.push(a);
         }
@@ -136,6 +126,7 @@ pub struct Question {
     pub qclass: u16,
 
     name_result: NameResult,
+    // TODO: This flag is redundant with the NameResult type; if it's Pointer, I think we can always say it's not done.
     done: bool,
 }
 
@@ -166,6 +157,15 @@ impl Question {
             qtype: buf.get_u16(),
             qclass: buf.get_u16(),
         }
+    }
+
+    fn update_pointer_from_full(&mut self, buf: &BytesMut) {
+        let Pointer(ref mut existing, start_pos) = self.name_result else { panic!("We shouldn't be here.") };
+        let labels = read_label_sequence(buf, start_pos);
+        existing.push('.');
+        existing.push_str(labels.join(".").as_str());
+        self.name = existing.to_string();
+        self.done = true;
     }
 }
 
@@ -228,6 +228,15 @@ impl Answer {
             name_result: nr,
             done: done
         }
+    }
+
+    fn update_pointer_from_full(&mut self, buf: &BytesMut) {
+        let Pointer(ref mut existing, length_pos) = self.name_result else { panic!("We shouldn't be here.") };
+        let labels = read_label_sequence(&buf, length_pos);
+        existing.push('.');
+        existing.push_str(labels.join(".").as_str());
+        self.name = existing.to_string();
+        self.done = true;
     }
 }
 
