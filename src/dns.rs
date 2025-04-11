@@ -328,7 +328,7 @@ mod tests {
                 reserved: 0,
                 response_code: 3,
                 question_count: 1,
-                answer_record_count: 2,
+                answer_record_count: 1,
                 authority_record_count: 0,
                 additional_record_count: 0,
             },
@@ -340,8 +340,8 @@ mod tests {
                 done: true,
             }],
             answers: vec![Answer {
-                name: "".to_string(),
-                qtype: 0,
+                name: "example.com".to_string(),
+                qtype: 1,
                 qclass: 1,
                 ttl: 360,
                 length: 4,
@@ -350,9 +350,8 @@ mod tests {
                 done: true,
             }],
         };
-        println!("{:?}", expected.to_bytes());
-        // let actual = Record::from_bytes(&mut expected.to_bytes());
-        // assert_eq!(expected, actual);
+        let actual = Record::from_bytes(&mut expected.to_bytes());
+        assert_eq!(expected, actual);
     }
 
     #[test]
