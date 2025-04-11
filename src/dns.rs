@@ -18,6 +18,7 @@ pub struct Record {
 impl Record {
 
     pub fn from_bytes(buf: &mut BytesMut) -> Record {
+        println!("JOHN: Building record");
         let h = Header::from_bytes(buf); // consumes header bytes, e.g. 12
         let bufc = buf.clone(); // Pointer offsets don't include header bytes.
         // Questions
