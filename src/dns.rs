@@ -206,7 +206,7 @@ impl Answer {
             qclass: q.qclass,
             ttl: 60,
             length: 4,
-            data: vec![0x08, 0x08, 0x08, 0x07],
+            data: vec![0x08, 0x08, 0x08, 0x08],
             name_result: NA,
             done: true
         }
