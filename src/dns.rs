@@ -1,4 +1,72 @@
 use bytes::{BufMut, BytesMut, Buf};
+use crate::dns::NameResult::{LabelSequence, Pointer, NA};
+
+#[derive(Debug, PartialEq)] // Optional: Derive Debug for easy printing
+enum NameResult {
+    Pointer(usize),
+    LabelSequence(String),
+    NA
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Record {
+    pub header: Header,
+    pub questions: Vec<Question>,
+    pub answers: Vec<Answer>
+}
+
+impl Record {
+
+    pub fn from_bytes(buf: &mut BytesMut) -> Record {
+        let h = Header::from_bytes(buf); // consumes header bytes, e.g. 12
+        let bufc = buf.clone(); // Pointer offsets don't include header bytes.
+        // Questions
+        let mut qs: Vec<Question> = Vec::new();
+        for _ in 0..h.question_count {
+            let mut q = Question::from_bytes(buf);
+            if !q.done {
+                let Pointer(length_pos) = q.name_result else { panic!("We shouldn't be here.") };
+                let labels = read_label_sequence(&bufc, length_pos);
+                q.name = labels.join(".");
+                q.done = true;
+            }
+            qs.push(q);
+        }
+        // Answers
+        let mut answers: Vec<Answer> = Vec::new();
+        for _ in 0..h.answer_record_count {
+            let mut a = Answer::from_bytes(buf);
+            if !a.done {
+                let Pointer(length_pos) = a.name_result else { panic!("We shouldn't be here.") };
+                let labels = read_label_sequence(&bufc, length_pos);
+                a.name = labels.join(".");
+                a.done = true;
+            }
+            answers.push(a);
+        }
+        Record {
+            header: h,
+            questions: qs,
+            answers: answers,
+        }
+    }
+
+    pub fn to_bytes(&self) -> BytesMut{
+        let (qs, ans): (BytesMut, BytesMut) = (
+            self.questions.iter()
+                .map(|q| q.to_bytes()).into_iter()
+                .fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc}),
+            self.answers.iter()
+                .map(|a| a.to_bytes()).into_iter()
+                .fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc})
+        );
+        let mut resp = BytesMut::new();
+        resp.extend_from_slice(self.header.to_bytes().as_ref());
+        resp.extend_from_slice(&qs);
+        resp.extend_from_slice(&ans);
+        resp
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Header {
@@ -40,8 +108,8 @@ impl Header {
         buf
     }
 
-    pub fn from_bytes(bs: &mut BytesMut) -> Header {
-        let (id, flags1, flags2) = (bs.get_u16(), bs.get_u8(), bs.get_u8());
+    pub fn from_bytes(buf: &mut BytesMut) -> Header {
+        let (id, flags1, flags2) = (buf.get_u16(), buf.get_u8(), buf.get_u8());
         Header {
             packet_identifier: id,
             query_response_indicator: (flags1 & 0b10000000) != 0,
@@ -52,10 +120,10 @@ impl Header {
             recursion_available: (flags2 & 0b10000000) != 0,
             reserved: (flags2 & 0b01110000) >> 4,
             response_code: flags2 & 0b00001111,
-            question_count: bs.get_u16(),
-            answer_record_count: bs.get_u16(),
-            authority_record_count: bs.get_u16(),
-            additional_record_count: bs.get_u16(),
+            question_count: buf.get_u16(),
+            answer_record_count: buf.get_u16(),
+            authority_record_count: buf.get_u16(),
+            additional_record_count: buf.get_u16(),
         }
     }
     
@@ -66,23 +134,37 @@ pub struct Question {
     pub name: String,
     pub qtype: u16,
     pub qclass: u16,
+
+    name_result: NameResult,
+    done: bool,
 }
 
 impl Question {
-    pub fn to_bytes(&self) -> BytesMut {
+    fn to_bytes(&self) -> BytesMut {
         let mut buf = BytesMut::new();
-        put_label_sequence(&mut buf, self.name.as_str());
+        match self.name_result {
+            LabelSequence(_) => put_label_sequence(&mut buf, self.name.as_str()),
+            Pointer(p) => buf.put_u16((0b11 << 14) | p as u16),
+            NA => panic!("what")
+        }
         buf.put_u16(self.qtype);
         buf.put_u16(self.qclass);
         buf
     }
 
-    pub fn from_bytes(mut bs: &mut BytesMut) -> Question {
-        let s = parse_label_sequence(&mut bs);
+    fn from_bytes(buf: &mut BytesMut) -> Question {
+        let nr = parse_name(buf);
+        let (name, done) = match &nr {
+            LabelSequence(s) => (s.as_str(), true),
+            Pointer(_) => ("", false),
+            NA => panic!("what")
+        };
         Question {
-            name: s.join("."),
-            qtype: bs.get_u16(),
-            qclass: bs.get_u16(),
+            name: name.to_string(),
+            name_result: nr,
+            done: done,
+            qtype: buf.get_u16(),
+            qclass: buf.get_u16(),
         }
     }
 }
@@ -94,11 +176,30 @@ pub struct Answer {
     pub qclass: u16,
     pub ttl: u32,
     pub length: u16,
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
+
+    name_result: NameResult,
+    done: bool
 }
 
 impl Answer {
+
+    pub fn from_question(q: &Question) -> Answer {
+        Answer {
+            name: q.name.clone(),
+            qtype: q.qtype,
+            qclass: q.qclass,
+            ttl: 60,
+            length: 4,
+            data: vec![0x08, 0x08, 0x08, 0x07],
+            name_result: NA,
+            done: true
+        }
+    }
     pub fn to_bytes(&self) -> BytesMut {
+        if !self.done {
+            panic!("Answer::to_bytes contains unresolved pointers");
+        }
         let mut buf = BytesMut::new();
         put_label_sequence(&mut buf, self.name.as_str());
         buf.reserve(16 + 16 + 32 + 16); // qtype, qclass, ttl, length
@@ -110,20 +211,27 @@ impl Answer {
         buf
     }
 
-    pub fn from_bytes(mut buf: &mut BytesMut) -> Answer {
-        let s = parse_label_sequence(&mut buf);
+    pub fn from_bytes(buf: &mut BytesMut) -> Answer {
+        let nr = parse_name(buf);
+        let (name, done) = match &nr {
+            LabelSequence(s) => (s.as_str(), true),
+            Pointer(_) => ("", false),
+            NA => panic!("what")
+        };
         Answer {
-            name: s.join("."),
+            name: name.to_string(),
             qtype: buf.get_u16(),
             qclass: buf.get_u16(),
             ttl: buf.get_u32(),
             length: buf.get_u16(),
-            data: buf.chunk().to_vec()
+            data: buf.chunk().to_vec(),
+            name_result: nr,
+            done: done
         }
     }
 }
 
-pub fn put_label_sequence(buf: &mut BytesMut, raw: &str) {
+fn put_label_sequence(buf: &mut BytesMut, raw: &str) {
     let parts = raw.split('.');
     let cap = label_sequence_cap(parts.clone().count());
     buf.reserve(cap);
@@ -139,11 +247,24 @@ pub fn put_label_sequence(buf: &mut BytesMut, raw: &str) {
 }
 
 // each part is N ASCII characters + 1 size; then 32 bits for qtype and qclass, then the NUL byte
-pub fn label_sequence_cap(num_labels: usize) -> usize {
+fn label_sequence_cap(num_labels: usize) -> usize {
     ((num_labels + 1) * 8) + 1
 }
 
-pub fn parse_label_sequence(buf: &mut BytesMut) -> Vec<String> {
+// Does not consume the buf!
+fn is_compressed(buf: u8) -> bool {
+    buf >> 6 == 0b11
+}
+
+fn parse_name(buf: &mut BytesMut) -> NameResult  {
+    if is_compressed(buf[0]) {
+        return Pointer(get_pointer(buf));
+    }
+    LabelSequence(get_label_sequence(buf).join("."))
+}
+
+// TODO: This gets the label sequence, e.g. consumes it. Maybe we don't want to do that?
+fn get_label_sequence(buf: &mut BytesMut) -> Vec<String> {
     let mut ls: Vec<String> = Vec::new();
     loop { // until we hit that NUL byte \0
         let next = buf.get_u8();
@@ -161,9 +282,71 @@ pub fn parse_label_sequence(buf: &mut BytesMut) -> Vec<String> {
     ls
 }
 
+fn read_label_sequence(buf: &BytesMut, mut length_pos: usize) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    loop {
+        if length_pos == 0x0 {
+            break
+        }
+        let l: usize = buf[length_pos] as usize;
+        let (start, end): (usize, usize) = (length_pos + 1, length_pos+1+l);
+        labels.push(String::from_utf8(buf[start..end].to_vec()).unwrap());
+        length_pos = end + 1
+    }
+    labels
+}
+
+// The pointer is the 2 MSB (big-endian), and we return usize since this will be used for indexing.
+fn get_pointer(buf: &mut BytesMut) -> usize {
+    (buf.get_u16() << 2 >> 2) as usize // consumes the pointer
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_record_to_bytes_from_bytes() {
+
+
+        let expected = Record {
+            header: Header {
+                packet_identifier: 1234,
+                query_response_indicator: true,
+                operation_code: 1,
+                authoritative_answer: true,
+                truncation: false,
+                recursion_desired: true,
+                recursion_available: false,
+                reserved: 0,
+                response_code: 3,
+                question_count: 1,
+                answer_record_count: 2,
+                authority_record_count: 0,
+                additional_record_count: 0,
+            },
+            questions: vec![Question {
+                name: "example.com".to_string(),
+                qtype: 1,  // A record
+                qclass: 1, // IN class
+                name_result: LabelSequence("example.com".to_string()),
+                done: true,
+            }],
+            answers: vec![Answer {
+                name: "".to_string(),
+                qtype: 0,
+                qclass: 1,
+                ttl: 360,
+                length: 4,
+                data: vec![0x08, 0x08, 0x08, 0x08],
+                name_result: LabelSequence(String::from("example.com")),
+                done: true,
+            }],
+        };
+        println!("{:?}", expected.to_bytes());
+        // let actual = Record::from_bytes(&mut expected.to_bytes());
+        // assert_eq!(expected, actual);
+    }
 
     #[test]
     fn test_header_to_bytes_from_bytes() {
@@ -184,8 +367,6 @@ mod tests {
         };
         let actual = Header::from_bytes(&mut expected.to_bytes());
         assert_eq!(expected, actual);
-        // assert_eq!(expected.packet_identifier, actual.packet_identifier);
-        // assert_eq!(expected.query_response_indicator, actual.query_response_indicator);
     }
 
     #[test]
@@ -194,11 +375,25 @@ mod tests {
             name: "example.com".to_string(),
             qtype: 1,  // A record
             qclass: 1, // IN class
+            name_result: LabelSequence("example.com".to_string()),
+            done: true,
         };
         let actual = Question::from_bytes(&mut expected.to_bytes());
-        assert_eq!(expected.name, actual.name);
-        assert_eq!(expected.qtype, actual.qtype);
-        assert_eq!(expected.qclass, actual.qclass);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_question_to_bytes_pointer() {
+        let expected = Question {
+            name: String::from(""),
+            qtype: 1,  // A record
+            qclass: 1, // IN class
+            name_result: Pointer(0b1010),
+            done: false,
+        };
+        let bs = expected.to_bytes();
+        assert!(is_compressed(bs[0]));
+        assert_eq!(&[bs[0], bs[1]], &[0b1100_0000, 0b0000_1010]);
     }
 
     #[test]
@@ -209,14 +404,11 @@ mod tests {
             qclass: 1,
             ttl: 360,
             length: 4,
-            data: vec![0x08, 0x08, 0x08, 0x08]
+            data: vec![0x08, 0x08, 0x08, 0x08],
+            name_result: LabelSequence(String::from("example.com")),
+            done: true,
         };
         let actual = Answer::from_bytes(&mut expected.to_bytes());
-        assert_eq!(expected.name, actual.name);
-        assert_eq!(expected.qtype, actual.qtype);
-        assert_eq!(expected.qclass, actual.qclass);
-        assert_eq!(expected.ttl, actual.ttl);
-        assert_eq!(expected.length, actual.length);
-        assert_eq!(expected.data, actual.data);
+        assert_eq!(expected, actual);
     }
 }
