@@ -24,12 +24,13 @@ impl Record {
         // Questions
         let mut qs: Vec<Question> = Vec::new();
         for _ in 0..h.question_count {
+            println!("JOHN: Question: Resolving questions");
             let mut q = Question::from_bytes(buf);
             if !q.done {
                 let Pointer(length_pos) = q.name_result else { panic!("We shouldn't be here.") };
-                println!("Question: Resolving pointer at byte position {}", length_pos);
+                println!("JOHN: Question: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
-                println!("Question: Found labels at byte position {}: {:?}", length_pos, labels);
+                println!("JOHN: Question: Found labels at byte position {}: {:?}", length_pos, labels);
                 q.name = labels.join(".");
                 q.done = true;
             }
@@ -38,6 +39,7 @@ impl Record {
         // Answers
         let mut answers: Vec<Answer> = Vec::new();
         for _ in 0..h.answer_record_count {
+            println!("JOHN: Answer: Resolving answers");
             let mut a = Answer::from_bytes(buf);
             if !a.done {
                 let Pointer(length_pos) = a.name_result else { panic!("We shouldn't be here.") };
