@@ -151,9 +151,9 @@ impl Question {
         let mut buf = BytesMut::new();
         match &self.name_result {
             LabelSequence(_) => put_label_sequence(&mut buf, self.name.as_str()),
-            Pointer(existing, p) => {
+            Pointer(existing, _) => {
                 buf.put_slice(existing.as_bytes());
-                buf.put_u16((0b11 << 14) | *p as u16)
+                // buf.put_u16((0b11 << 14) | *p as u16)
             },
             NA => panic!("what")
         }
