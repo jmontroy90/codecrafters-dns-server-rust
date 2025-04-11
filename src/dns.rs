@@ -151,10 +151,7 @@ impl Question {
         let mut buf = BytesMut::new();
         match &self.name_result {
             LabelSequence(_) => put_label_sequence(&mut buf, self.name.as_str()),
-            Pointer(existing, _) => {
-                buf.put_slice(existing.as_bytes());
-                // buf.put_u16((0b11 << 14) | *p as u16)
-            },
+            Pointer(existing, _) => put_label_sequence(&mut buf, existing.as_str()), // buf.put_u16((0b11 << 14) | *p as u16)
             NA => panic!("what")
         }
         buf.put_u16(self.qtype);
