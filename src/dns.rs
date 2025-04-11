@@ -195,14 +195,14 @@ pub struct Answer {
 
 impl Answer {
 
-    pub fn from_question(q: &Question) -> Answer {
+    pub fn from_question(i: u8, q: &Question) -> Answer {
         Answer {
             name: q.name.clone(),
             qtype: q.qtype,
             qclass: q.qclass,
             ttl: 60,
             length: 4,
-            data: vec![0x8, 0x8, 0x8, 0x8],
+            data: vec![0x8, 0x8, 0x8, 0x8 + i],
             name_result: NA,
             done: true
         }
