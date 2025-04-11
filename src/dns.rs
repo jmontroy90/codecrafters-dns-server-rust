@@ -160,6 +160,7 @@ impl Question {
     }
 
     fn from_bytes(buf: &mut BytesMut) -> Question {
+        println!("JOHN: Question::from_bytes -- your full bytes: {:?}", buf);
         let nr = parse_name(buf);
         let (name, done) = match &nr {
             LabelSequence(s) => (s.as_str(), true),
