@@ -14,7 +14,7 @@ fn main() {
                 let resp = build_response(buf);
                 println!("Received {} bytes from {}", size, source);
                 let out = &resp.freeze();
-                println!("JOHN: OUTPUT bytes: {:#?}", out);
+                println!("JOHN: OUTPUT bytes: {:#?}", out.trim_ascii_end());
                 udp_socket
                     .send_to(out.trim_ascii_end(), source)
                     .expect("Failed to send response");
