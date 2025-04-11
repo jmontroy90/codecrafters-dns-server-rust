@@ -293,25 +293,6 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
     }
 }
 
-// TODO: This gets the label sequence, e.g. consumes it. Maybe we don't want to do that?
-// fn get_label_sequence(buf: &mut BytesMut) -> Vec<String> {
-//     let mut ls: Vec<String> = Vec::new();
-//     loop { // until we hit that NUL byte \0
-//         let next = buf.get_u8();
-//         if next == 0 || next >> 6 == 0b11 {
-//             break;
-//         }
-//         let mut consume_bs = next.clone();
-//         let mut l = Vec::with_capacity(consume_bs as usize);
-//         while consume_bs != 0 {
-//             l.push(buf.get_u8());
-//             consume_bs -= 1;
-//         }
-//         ls.push(String::from_utf8(l).unwrap().to_string());
-//     }
-//     ls
-// }
-
 fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     println!("JOHN: reading label sequence; full bytes: {:?}", buf);

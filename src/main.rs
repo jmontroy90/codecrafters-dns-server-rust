@@ -31,5 +31,6 @@ fn build_response(mut buf: BytesMut) -> BytesMut {
     resp.header.response_code = if resp.header.operation_code == 0 { 0 } else { 4 };
     resp.header.answer_record_count = resp.header.question_count;
     resp.answers = resp.questions.iter().map(|q| { Answer::from_question(q) }).collect();
+    println!("{:#?}", resp);
     resp.to_bytes()
 }
