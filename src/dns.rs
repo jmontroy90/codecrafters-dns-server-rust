@@ -26,7 +26,9 @@ impl Record {
             let mut q = Question::from_bytes(buf);
             if !q.done {
                 let Pointer(length_pos) = q.name_result else { panic!("We shouldn't be here.") };
+                println!("Question: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
+                println!("Question: Found labels at byte position {}: {:?}", length_pos, labels);
                 q.name = labels.join(".");
                 q.done = true;
             }
@@ -38,7 +40,9 @@ impl Record {
             let mut a = Answer::from_bytes(buf);
             if !a.done {
                 let Pointer(length_pos) = a.name_result else { panic!("We shouldn't be here.") };
+                println!("Answer: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
+                println!("Answer: Found labels at byte position {}: {:?}", length_pos, labels);
                 a.name = labels.join(".");
                 a.done = true;
             }
