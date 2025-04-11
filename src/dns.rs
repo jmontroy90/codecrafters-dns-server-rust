@@ -327,7 +327,7 @@ fn read_label_sequence(buf: &BytesMut, mut length_pos: usize) -> Vec<String> {
 
 // The pointer is the 2 MSB (big-endian), and we return usize since this will be used for indexing.
 fn get_pointer(buf: &mut BytesMut) -> usize {
-    (buf.get_u16() << 2 >> 2) as usize // consumes the pointer
+    ((buf.get_u16() << 2) >> 2) as usize // consumes the pointer
 }
 
 #[cfg(test)]
