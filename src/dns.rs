@@ -135,7 +135,6 @@ impl Header {
             additional_record_count: buf.get_u16(),
         }
     }
-    
 }
 
 #[derive(Debug, PartialEq)]
@@ -276,7 +275,9 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
         let next = buf.get_u8();
         if is_compressed(next) {
             println!("JOHN: FOUND COMPRESSION!");
-            return Pointer(ls.join("."), get_pointer(buf));
+            let (existing, pointer) = (ls.join("."), get_pointer(buf));
+            println!("JOHN: EXISTING: {}; POINTER: {}", existing, pointer);
+            return Pointer(existing, pointer);
         } else if next == 0x0 { // Pointers will never end with \0
             return LabelSequence(ls.join("."));
         } else {
