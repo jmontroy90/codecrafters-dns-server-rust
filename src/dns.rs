@@ -19,19 +19,19 @@ impl Record {
 
     // TODO: lots of redundant code here, and weird types with String
     pub fn from_bytes(buf: &mut BytesMut) -> Record {
-        println!("JOHN: Building record");
+        // println!("JOHN: Building record");
         let bufc = buf.clone(); // Used for resolving pointers.
         let h = Header::from_bytes(buf); // consumes header bytes, e.g. 12
         // Questions
         let mut qs: Vec<Question> = Vec::new();
         for _ in 0..h.question_count {
-            println!("JOHN: Question: Resolving questions");
+            // println!("JOHN: Question: Resolving questions");
             let mut q = Question::from_bytes(buf);
             if !q.done {
                 let Pointer(ref mut existing, start_pos) = q.name_result else { panic!("We shouldn't be here.") };
-                println!("JOHN: Question: Resolving pointer at byte position {}", start_pos);
+                // println!("JOHN: Question: Resolving pointer at byte position {}", start_pos);
                 let labels = read_label_sequence(&bufc, start_pos);
-                println!("JOHN: Question: Found labels at byte position {}: {:?}", start_pos, labels);
+                // println!("JOHN: Question: Found labels at byte position {}: {:?}", start_pos, labels);
                 existing.push('.');
                 existing.push_str(labels.join(".").as_str());
                 q.name = existing.to_string();
@@ -42,13 +42,13 @@ impl Record {
         // Answers
         let mut answers: Vec<Answer> = Vec::new();
         for _ in 0..h.answer_record_count {
-            println!("JOHN: Answer: Resolving answers");
+            // println!("JOHN: Answer: Resolving answers");
             let mut a = Answer::from_bytes(buf);
             if !a.done {
                 let Pointer(ref mut existing, length_pos) = a.name_result else { panic!("We shouldn't be here.") };
-                println!("Answer: Resolving pointer at byte position {}", length_pos);
+                // println!("JOHN: Answer: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
-                println!("Answer: Found labels at byte position {}: {:?}", length_pos, labels);
+                // println!("JOHN: Answer: Found labels at byte position {}: {:?}", length_pos, labels);
                 existing.push('.');
                 existing.push_str(labels.join(".").as_str());
                 a.name = existing.to_string();
@@ -63,7 +63,7 @@ impl Record {
         }
     }
 
-    pub fn to_bytes(&self) -> BytesMut{
+    pub fn to_bytes(&self) -> BytesMut {
         let (qs, ans): (BytesMut, BytesMut) = (
             self.questions.iter()
                 .map(|q| q.to_bytes()).into_iter()
@@ -72,11 +72,7 @@ impl Record {
                 .map(|a| a.to_bytes()).into_iter()
                 .fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc})
         );
-        let mut resp = BytesMut::new();
-        resp.extend_from_slice(self.header.to_bytes().as_ref());
-        resp.extend_from_slice(&qs);
-        resp.extend_from_slice(&ans);
-        resp
+        [self.header.to_bytes(), qs, ans].fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc });
     }
 }
 
@@ -167,7 +163,7 @@ impl Question {
     }
 
     fn from_bytes(buf: &mut BytesMut) -> Question {
-        println!("JOHN: Question::from_bytes -- your full bytes: {:?}", buf);
+        // println!("JOHN: Question::from_bytes -- your full bytes: {:?}", buf);
         let nr = parse_name(buf);
         let (name, done) = match &nr {
             LabelSequence(s) => (s.as_str(), true),
@@ -278,9 +274,9 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
         let next = buf.get_u8();
         if is_compressed(next) {
             let pbs = [next << 2 >> 2, buf.get_u8()];
-            println!("JOHN: FOUND COMPRESSION! POINTER BYTES: {:?}", pbs);
+            // println!("JOHN: FOUND COMPRESSION! POINTER BYTES: {:?}", pbs);
             let (existing, pointer) = (ls.join("."), u16::from_be_bytes(pbs) as usize);
-            println!("JOHN: EXISTING: {}; POINTER: {}", existing, pointer);
+            // println!("JOHN: EXISTING: {}; POINTER: {}", existing, pointer);
             return Pointer(existing, pointer);
         } else if next == 0x0 { // Pointers will never end with \0
             return LabelSequence(ls.join("."));
@@ -298,14 +294,14 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
 
 fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
-    println!("JOHN: reading label sequence; full bytes: {:?}", buf);
+    // println!("JOHN: reading label sequence; full bytes: {:?}", buf);
     loop {
         let mut length = buf[start_pos] as usize;
         if length == 0x0 {
             break
         }
         let (start, end): (usize, usize) = (start_pos + 1, start_pos+1+length);
-        println!("JOHN: Reading label from pointer position. length: {}, start_pos: {}, start: {}, end: {}", length, start_pos, start, end);
+        // println!("JOHN: Reading label from pointer position. length: {}, start_pos: {}, start: {}, end: {}", length, start_pos, start, end);
         labels.push(String::from_utf8(buf[start..end].to_vec()).unwrap());
         start_pos = end
     }
@@ -315,7 +311,7 @@ fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
 // The pointer is the 2 MSB (big-endian), and we return usize since this will be used for indexing.
 fn get_pointer(buf: &mut BytesMut) -> usize {
     let p = buf.get_u16();
-    println!("JOHN: POINTER 2 BYTES WITHOUT SHIFTS: {}", p);
+    // println!("JOHN: POINTER 2 BYTES WITHOUT SHIFTS: {}", p);
     let pshift = ((p << 2) >> 2) as usize;
     pshift // consumes the pointer
 }
