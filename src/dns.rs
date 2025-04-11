@@ -1,4 +1,4 @@
-use bytes::{BufMut, BytesMut, Buf, Bytes};
+use bytes::{BufMut, BytesMut, Buf};
 use crate::dns::NameResult::{LabelSequence, Pointer, NA};
 
 #[derive(Debug, PartialEq)] // Optional: Derive Debug for easy printing
@@ -72,7 +72,7 @@ impl Record {
                 .map(|a| a.to_bytes()).into_iter()
                 .fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc})
         );
-        [self.header.to_bytes(), qs, ans].fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc });
+        [self.header.to_bytes(), qs, ans].iter().fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc })
     }
 }
 
@@ -296,7 +296,7 @@ fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
     // println!("JOHN: reading label sequence; full bytes: {:?}", buf);
     loop {
-        let mut length = buf[start_pos] as usize;
+        let length = buf[start_pos] as usize;
         if length == 0x0 {
             break
         }
@@ -306,14 +306,6 @@ fn read_label_sequence(buf: &BytesMut, mut start_pos: usize) -> Vec<String> {
         start_pos = end
     }
     labels
-}
-
-// The pointer is the 2 MSB (big-endian), and we return usize since this will be used for indexing.
-fn get_pointer(buf: &mut BytesMut) -> usize {
-    let p = buf.get_u16();
-    // println!("JOHN: POINTER 2 BYTES WITHOUT SHIFTS: {}", p);
-    let pshift = ((p << 2) >> 2) as usize;
-    pshift // consumes the pointer
 }
 
 #[cfg(test)]
