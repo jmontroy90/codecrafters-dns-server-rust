@@ -3,7 +3,7 @@ use crate::dns::NameResult::{LabelSequence, Pointer, NA};
 
 #[derive(Debug, PartialEq)] // Optional: Derive Debug for easy printing
 enum NameResult {
-    Pointer(usize),
+    Pointer(String, usize),
     LabelSequence(String),
     NA
 }
@@ -27,11 +27,12 @@ impl Record {
             println!("JOHN: Question: Resolving questions");
             let mut q = Question::from_bytes(buf);
             if !q.done {
-                let Pointer(length_pos) = q.name_result else { panic!("We shouldn't be here.") };
+                let Pointer(ref mut existing, length_pos) = q.name_result else { panic!("We shouldn't be here.") };
                 println!("JOHN: Question: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
                 println!("JOHN: Question: Found labels at byte position {}: {:?}", length_pos, labels);
-                q.name = labels.join(".");
+                existing.push_str(labels.join(".").as_str());
+                q.name = existing.to_string();
                 q.done = true;
             }
             qs.push(q);
@@ -42,11 +43,12 @@ impl Record {
             println!("JOHN: Answer: Resolving answers");
             let mut a = Answer::from_bytes(buf);
             if !a.done {
-                let Pointer(length_pos) = a.name_result else { panic!("We shouldn't be here.") };
+                let Pointer(ref mut existing, length_pos) = a.name_result else { panic!("We shouldn't be here.") };
                 println!("Answer: Resolving pointer at byte position {}", length_pos);
                 let labels = read_label_sequence(&bufc, length_pos);
                 println!("Answer: Found labels at byte position {}: {:?}", length_pos, labels);
-                a.name = labels.join(".");
+                existing.push_str(labels.join(".").as_str());
+                a.name = existing.to_string();
                 a.done = true;
             }
             answers.push(a);
@@ -149,9 +151,12 @@ pub struct Question {
 impl Question {
     fn to_bytes(&self) -> BytesMut {
         let mut buf = BytesMut::new();
-        match self.name_result {
+        match &self.name_result {
             LabelSequence(_) => put_label_sequence(&mut buf, self.name.as_str()),
-            Pointer(p) => buf.put_u16((0b11 << 14) | p as u16),
+            Pointer(existing, p) => {
+                buf.put_slice(existing.as_bytes());
+                buf.put_u16((0b11 << 14) | *p as u16)
+            },
             NA => panic!("what")
         }
         buf.put_u16(self.qtype);
@@ -164,7 +169,7 @@ impl Question {
         let nr = parse_name(buf);
         let (name, done) = match &nr {
             LabelSequence(s) => (s.as_str(), true),
-            Pointer(_) => ("", false),
+            Pointer(existing, _) => (existing.as_str(), false),
             NA => panic!("what")
         };
         Question {
@@ -223,7 +228,7 @@ impl Answer {
         let nr = parse_name(buf);
         let (name, done) = match &nr {
             LabelSequence(s) => (s.as_str(), true),
-            Pointer(_) => ("", false),
+            Pointer(existing, _) => (existing.as_str(), false),
             NA => panic!("what")
         };
         Answer {
@@ -265,31 +270,45 @@ fn is_compressed(buf: u8) -> bool {
 }
 
 fn parse_name(buf: &mut BytesMut) -> NameResult  {
-    if is_compressed(buf[0]) {
-        println!("JOHN: FOUND COMPRESSION!");
-        return Pointer(get_pointer(buf));
+    // This consumes the buffer, and handles the THREE cases of the QNAME field.
+    let mut ls: Vec<String> = Vec::new();
+    loop {
+        let next = buf.get_u8();
+        if is_compressed(next) {
+            println!("JOHN: FOUND COMPRESSION!");
+            return Pointer(ls.join("."), get_pointer(buf));
+        } else if next == 0x0 { // Pointers will never end with \0
+            return LabelSequence(ls.join("."));
+        } else {
+            let mut consume_bs = next.clone();
+            let mut l = Vec::with_capacity(consume_bs as usize);
+            while consume_bs != 0 {
+                l.push(buf.get_u8());
+                consume_bs -= 1;
+            }
+            ls.push(String::from_utf8(l).unwrap().to_string());
+        }
     }
-    LabelSequence(get_label_sequence(buf).join("."))
 }
 
 // TODO: This gets the label sequence, e.g. consumes it. Maybe we don't want to do that?
-fn get_label_sequence(buf: &mut BytesMut) -> Vec<String> {
-    let mut ls: Vec<String> = Vec::new();
-    loop { // until we hit that NUL byte \0
-        let next = buf.get_u8();
-        if next == 0 {
-            break;
-        }
-        let mut consume_bs = next.clone();
-        let mut l = Vec::with_capacity(consume_bs as usize);
-        while consume_bs != 0 {
-            l.push(buf.get_u8());
-            consume_bs -= 1;
-        }
-        ls.push(String::from_utf8(l).unwrap().to_string());
-    }
-    ls
-}
+// fn get_label_sequence(buf: &mut BytesMut) -> Vec<String> {
+//     let mut ls: Vec<String> = Vec::new();
+//     loop { // until we hit that NUL byte \0
+//         let next = buf.get_u8();
+//         if next == 0 || next >> 6 == 0b11 {
+//             break;
+//         }
+//         let mut consume_bs = next.clone();
+//         let mut l = Vec::with_capacity(consume_bs as usize);
+//         while consume_bs != 0 {
+//             l.push(buf.get_u8());
+//             consume_bs -= 1;
+//         }
+//         ls.push(String::from_utf8(l).unwrap().to_string());
+//     }
+//     ls
+// }
 
 fn read_label_sequence(buf: &BytesMut, mut length_pos: usize) -> Vec<String> {
     let mut labels: Vec<String> = Vec::new();
@@ -397,7 +416,7 @@ mod tests {
             name: String::from(""),
             qtype: 1,  // A record
             qclass: 1, // IN class
-            name_result: Pointer(0b1010),
+            name_result: Pointer("".to_string(), 0b1010),
             done: false,
         };
         let bs = expected.to_bytes();
