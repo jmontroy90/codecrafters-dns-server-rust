@@ -275,7 +275,7 @@ fn parse_name(buf: &mut BytesMut) -> NameResult  {
         let next = buf.get_u8();
         if is_compressed(next) {
             println!("JOHN: FOUND COMPRESSION!");
-            let (existing, pointer) = (ls.join("."), ((u16::from_be_bytes([next, buf.get_u8()]) << 2) >> 2) as usize);
+            let (existing, pointer) = (ls.join("."), u16::from_be_bytes([next << 2 >> 2, buf.get_u8()]) as usize);
             println!("JOHN: EXISTING: {}; POINTER: {}", existing, pointer);
             return Pointer(existing, pointer);
         } else if next == 0x0 { // Pointers will never end with \0
