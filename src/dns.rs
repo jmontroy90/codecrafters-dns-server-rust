@@ -57,9 +57,18 @@ impl Record {
         );
         [self.header.to_bytes(), qs, ans].iter().fold(BytesMut::new(), |mut acc, bs| { acc.extend_from_slice(&bs); acc })
     }
+
+    // Consumes self?!?!
+    pub fn generate_single_requests(self) -> Vec<Record> {
+        let mut h = self.header.clone();
+        h.question_count = 1;
+        self.questions.into_iter().map(|q| {
+            Record { header: h.clone(), questions: vec![q], answers: vec![]}
+        }).collect::<Vec<Record>>()
+    }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Header {
     pub packet_identifier: u16,
     pub query_response_indicator: bool,
