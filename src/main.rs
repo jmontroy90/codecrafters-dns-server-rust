@@ -15,12 +15,10 @@ fn main() {
 }
 
 fn resolve_with_upstream(upstream_addr: &str) {
-
     let udp_socket = UdpSocket::bind("127.0.0.1:2053").expect("Failed to bind to local");
     let upstream_socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind to upstream");
     let mut bs = [0; 512];
 
-    println!("JOHN: starting main loop");
     loop {
         match udp_socket.recv_from(&mut bs) {
             Ok((size, source)) => {
