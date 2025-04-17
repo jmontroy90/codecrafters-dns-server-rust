@@ -2,7 +2,7 @@
 
 This is my Rust solution for the CodeCrafter's ["Build Your Own DNS server" Challenge](https://app.codecrafters.io/courses/dns-server/overview).
 
-tl;dr - this was a real challenge with:
+tl;dr - this was a really challenge with:
 - Bit-packing the header, bit shifts and all that.
 - Parsing and reading different formats of low-level bytes.
 - Rust is a nitpicky language.
